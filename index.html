@@ -54,7 +54,40 @@ enemy = function(x, y, spd_x, spd_y, id, width, height) {
 	enemy_list[id] = enemy3;
 }
 
+upgrade = function(x, y, spd_x, spd_y, id, width, height, category, colour) {
+	// Enemy3
+	var upgrade = {
+		x: x,
+		y: y,
+		spd_x: spd_x,
+		spd_y: spd_y,
+		id: id,
+		width: width,
+		height: height,
+		colour: colour,
+		category: category
+	};
+	upgrade_list[id] = upgrade;
+}
+
+bullet = function(x, y, spd_x, spd_y, id, width, height) {
+	// Enemy3
+	var bullet = {
+		x: x,
+		y: y,
+		spd_x: spd_x,
+		spd_y: spd_y,
+		id: id,
+		width: width,
+		height: height,
+		colour: "black",
+		timer: 0
+	};
+	bullet_list[id] = bullet;
+}
+
 document.onmousemove = function(mouse) {
+	/*
 	var mouse_x = mouse.clientX - document.getElementById("canvas").getBoundingClientRect().left;
 	var mouse_y = mouse.clientY - document.getElementById("canvas").getBoundingClientRect().top;
 
@@ -69,6 +102,7 @@ document.onmousemove = function(mouse) {
 
 	player.x = mouse_x;
 	player.y = mouse_y;
+	*/
 }
 
 update_entity = function(entity) {
@@ -104,6 +138,7 @@ draw_entity = function(entity) {
 
 draw_score = function() {
 	ctx.fillText("Health: " + player.hp, 0, 30);
+	ctx.fillText("Score: " + score, 100, 30);
 }
 
 generate_enemy = function() {
@@ -116,31 +151,163 @@ generate_enemy = function() {
 	var spd_x = 5 + Math.random() * 2;
 	var spd_y = 5 + Math.random() * 2
 
-	console.log(width);
-	console.log(height);
-	console.log(spd_x);
-
 	enemy(x, y, spd_x, spd_y, id, width, height);
+}
+
+generate_upgrade = function() {
+	// Math.random() generates a number between 0 and 1
+	var x = Math.random() * CANVAS_WIDTH;
+	var y = Math.random() * CANVAS_HEIGHT;
+	var width = 10;
+	var height = 10;
+	var id = Math.random();
+	var spd_x = 0;
+	var spd_y = 0;
+
+	if(Math.random() < 0.3) {
+		var category = "attack_spd";
+		var colour = "green";
+	}
+
+	else {
+		var category = "score";
+		var colour = "orange";
+	}
+
+	upgrade(x, y, spd_x, spd_y, id, width, height, category, colour);
+}
+
+generate_bullet = function() {
+	// Math.random() generates a number between 0 and 1
+	var x = player.x;
+	var y = player.y;
+	var width = 10;
+	var height = 10;
+	var id = Math.random();
+	var angle = Math.random() * 360;
+	var spd_x = Math.cos(angle / 180 * Math.PI) * 5;
+	var spd_y = Math.sin(angle / 180 * Math.PI) * 5;
+
+	bullet(x, y, spd_x, spd_y, id, width, height);
 }
 
 start_new_game = function() {
 	// Restart score counter
 	time_game_started = Date.now();
 	player.hp = 10;
+	score = 0;
 
 	// Clear enemies then create them
 	enemy_list = {};
+	upgrade_list = {};
+	bullet_list = {};
 	generate_enemy();
 	generate_enemy();
 	generate_enemy();
 }
 
+document.onclick = function(mouse) {
+	if(player.attack_counter > 25) {
+		generate_bullet();
+		player.attack_counter = 0;
+	}
+}
+
+is_position_out_of_bounds = function() {
+	if(player.x < player.width / 2)
+		player.x = player.width / 2;
+	if(player.x > CANVAS_WIDTH - player.width / 2)
+		player.x = CANVAS_WIDTH - player.width / 2;
+	if(player.y < player.height / 2)
+		player.y = player.height / 2;
+	if(player.y > CANVAS_HEIGHT - player.height / 2)
+		player.y = CANVAS_HEIGHT - player.height / 2;
+}
+
+
+update_player_position = function() {
+	if(player.up_key) 
+		player.y -= 10;
+	if(player.down_key) 
+		player.y += 10;
+	if(player.left_key) 
+		player.x -= 10;
+	if(player.right_key) 
+		player.x += 10;
+
+	is_position_out_of_bounds();
+}
+
+document.onkeydown = function(event) {
+	if(event.keyCode === 87) // w
+		player.up_key = true;
+	else if(event.keyCode === 83) //s
+		player.down_key = true;
+	else if(event.keyCode === 65) // a
+		player.left_key = true;
+	else if(event.keyCode === 68) // d
+		player.right_key = true;
+}
+
+document.onkeyup = function(event) {
+	if(event.keyCode === 87)
+		player.up_key = false;
+	else if(event.keyCode === 83)
+		player.down_key = false;
+	else if(event.keyCode === 65)
+		player.left_key = false;
+	else if(event.keyCode === 68)
+		player.right_key = false;
+}
+
 update_canvas = function() {
 	clear_canvas();
 	frame_count++;
+	score++;
 
 	if(frame_count % 100 === 0)
 		generate_enemy();
+
+	if(frame_count % 100 === 0)
+		generate_upgrade();
+
+	player.attack_counter += player.attack_spd;
+
+	for(var key in bullet_list) {
+		update_entity(bullet_list[key]);
+
+		bullet_list[key].timer++;
+
+		if(bullet_list[key].timer > 100) {
+			delete bullet_list[key];
+			continue;
+		}
+
+		for(var key2 in enemy_list) {
+
+			var is_colliding = test_collison_between_entities(bullet_list[key], enemy_list[key2]);
+			if(is_colliding) {
+				delete bullet_list[key];
+				delete enemy_list[key2];
+				break;
+			}
+		}
+	}
+
+	for(var key in upgrade_list) {
+		update_entity(upgrade_list[key]);
+
+		var is_colliding = test_collison_between_entities(player, upgrade_list[key]);
+		if(is_colliding) {
+			if(upgrade_list[key].category == "attack_spd") {
+				player.attack_spd = 3;
+			}
+			else {
+				score += 1000;
+			}
+			delete upgrade_list[key];
+		}
+	}
 
 	for(var key in enemy_list) {
 		update_entity(enemy_list[key]);	
@@ -159,6 +326,7 @@ update_canvas = function() {
 		start_new_game();
 	}
 
+	update_player_position();
 	draw_entity(player);
 	draw_score();
 }
@@ -184,12 +352,21 @@ var player = {
 	hp: 10,
 	width: 20,
 	height: 20,
-	colour: "green"
+	colour: "green",
+	attack_spd: 1,
+	attack_counter: 0,
+	up_key: false,
+	down_key: false,
+	left_key: false,
+	right_key: false
 };
 
 var frame_count = 0;
+var score = 0;
 
 var enemy_list = {};
+var upgrade_list = {};
+var bullet_list = {};
 start_new_game();
 
 setInterval(update_canvas, 25);
